@@ -2,6 +2,7 @@ package app
 
 import (
 	"AstroKube/cmd/app/options"
+	_ "AstroKube/pkg/apis"
 	"AstroKube/pkg/astrolet"
 	"AstroKube/pkg/astrolet/utils"
 	"context"

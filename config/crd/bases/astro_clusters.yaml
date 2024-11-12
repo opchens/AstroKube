@@ -1,0 +1,396 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: clusters.astro
+spec:
+  group: astro
+  names:
+    kind: Cluster
+    listKind: ClusterList
+    plural: clusters
+    singular: cluster
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: Cluster is the Schema for the clusters API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ClusterSpec defines the desired state of Cluster
+            type: object
+          status:
+            description: ClusterStatus defines the observed state of Cluster
+            properties:
+              addresses:
+                items:
+                  properties:
+                    addressIP:
+                      type: string
+                    type:
+                      type: string
+                  type: object
+                type: array
+              aggregate:
+                description: Aggregate indicate which aggregate cluster contains
+                items:
+                  type: string
+                type: array
+              allocatable:
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
+                description: Allocatable indicate the resources available for scheduling  within
+                  the cluster
+                type: object
+              clusterInfo:
+                description: ClusterInfo
+                properties:
+                  buildDate:
+                    type: string
+                  compiler:
+                    type: string
+                  gitCommit:
+                    type: string
+                  gitTreeState:
+                    type: string
+                  gitVersion:
+                    type: string
+                  goVersion:
+                    type: string
+                  major:
+                    type: string
+                  minor:
+                    type: string
+                  platform:
+                    type: string
+                required:
+                - buildDate
+                - compiler
+                - gitCommit
+                - gitTreeState
+                - gitVersion
+                - goVersion
+                - major
+                - minor
+                - platform
+                type: object
+              condition:
+                description: Conditions is an array of cluster conditions
+                items:
+                  properties:
+                    lastHeartbeatTime:
+                      description: LastHeartbeatTime indicate Last time we got an
+                        update on a given condition.
+                      format: date-time
+                      type: string
+                    lastTransitionTime:
+                      description: LastTransitionTime indicate  the condition transit
+                        from one status to another
+                      format: date-time
+                      type: string
+                    message:
+                      description: Message indicate details about last transtion
+                      type: string
+                    reason:
+                      description: Reason indicate the reason of the condition's  last
+                        transtion
+                      type: string
+                    status:
+                      description: Status indicate the status of the condition
+                      type: string
+                    type:
+                      description: Type of cluster  condition
+                      type: string
+                  required:
+                  - lastHeartbeatTime
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              customResourceDefinitions:
+                description: CustomResourceDefinitions
+                items:
+                  type: string
+                type: array
+              daemonEndpoint:
+                description: Endpoints of daemons running on the Cluster
+                properties:
+                  apiServerEndpoint:
+                    description: ApiServerEndpoint indicate Endpoint on which KubeApiserver
+                      is listening in Sub Cluster
+                    properties:
+                      address:
+                        type: string
+                      port:
+                        format: int32
+                        type: integer
+                      protocol:
+                        type: string
+                    required:
+                    - address
+                    - port
+                    - protocol
+                    type: object
+                  astroletEndpoint:
+                    description: AstroletEndpoint indicate Endpoint on which astrolet
+                      is listening
+                    properties:
+                      address:
+                        type: string
+                      port:
+                        format: int32
+                        type: integer
+                      protocol:
+                        type: string
+                    required:
+                    - address
+                    - port
+                    - protocol
+                    type: object
+                required:
+                - apiServerEndpoint
+                - astroletEndpoint
+                type: object
+              namespace:
+                description: Namespace indicated the resource occupation of a federal
+                  namespace in the workloadCluster
+                items:
+                  description: NamespaceUsage Namespace Usage describe requests and
+                    limits resource of a federal namespace in the WorkloadCluster
+                  properties:
+                    name:
+                      type: string
+                    usage:
+                      description: Usage indicate the requests and limits resource
+                        of a federal namespaces in the WorkloadCluster
+                      properties:
+                        claims:
+                          description: |-
+                            Claims lists the names of resources, defined in spec.resourceClaims,
+                            that are used by this container.
+
+
+                            This is an alpha field and requires enabling the
+                            DynamicResourceAllocation feature gate.
+
+
+                            This field is immutable. It can only be set for containers.
+                          items:
+                            description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                            properties:
+                              name:
+                                description: |-
+                                  Name must match the name of one entry in pod.spec.resourceClaims of
+                                  the Pod where this field is used. It makes that resource available
+                                  inside a container.
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          type: array
+                          x-kubernetes-list-map-keys:
+                          - name
+                          x-kubernetes-list-type: map
+                        limits:
+                          additionalProperties:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          description: |-
+                            Limits describes the maximum amount of compute resources allowed.
+                            More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                          type: object
+                        requests:
+                          additionalProperties:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          description: |-
+                            Requests describes the minimum amount of compute resources required.
+                            If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                            otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                            More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                          type: object
+                      type: object
+                  required:
+                  - name
+                  - usage
+                  type: object
+                type: array
+              nodeAggregate:
+                additionalProperties:
+                  properties:
+                    nodes:
+                      items:
+                        description: NodeLeftResources Describes the remaining resources
+                          of the node
+                        properties:
+                          left:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: ResourceList is a set of (resource name,
+                              quantity) pairs.
+                            type: object
+                          name:
+                            description: Name  indicate the name of node
+                            type: string
+                        required:
+                        - left
+                        - name
+                        type: object
+                      type: array
+                  required:
+                  - nodes
+                  type: object
+                description: NodeAggregate describe remained resource of top N nodes
+                  in same partition based on remaining resources
+                type: object
+              nodes:
+                description: Nodes describes remained resource of top N nodes based
+                  on remaining resources
+                items:
+                  description: NodeLeftResources Describes the remaining resources
+                    of the node
+                  properties:
+                    left:
+                      additionalProperties:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      description: ResourceList is a set of (resource name, quantity)
+                        pairs.
+                      type: object
+                    name:
+                      description: Name  indicate the name of node
+                      type: string
+                  required:
+                  - left
+                  - name
+                  type: object
+                type: array
+              phase:
+                type: string
+              secretRef:
+                description: SecretRef indicate the secretRef of sub cluster
+                properties:
+                  name:
+                    type: string
+                  namespace:
+                    type: string
+                required:
+                - name
+                - namespace
+                type: object
+              storage:
+                description: Storage is an array of csi plugins installed in the subCluster
+                items:
+                  type: string
+                type: array
+              subClusterAllocatable:
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
+                description: SubClusterAllocated indicate the resources in the cluster
+                  that can be used for scheduling
+                type: object
+              subClusterNodes:
+                description: SubClusterNodes indicted the resource of topN nodes based
+                  on remaining resources
+                items:
+                  description: NodeLeftResources Describes the remaining resources
+                    of the node
+                  properties:
+                    left:
+                      additionalProperties:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      description: ResourceList is a set of (resource name, quantity)
+                        pairs.
+                      type: object
+                    name:
+                      description: Name  indicate the name of node
+                      type: string
+                  required:
+                  - left
+                  - name
+                  type: object
+                type: array
+              subClusterUsage:
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
+                description: SubClusterUsage indicate the resources used by clusters
+                type: object
+              usage:
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
+                description: Usage indicate the resources that has used for the cluster
+                type: object
+            required:
+            - aggregate
+            - clusterInfo
+            - condition
+            - customResourceDefinitions
+            - daemonEndpoint
+            - namespace
+            - nodeAggregate
+            - nodes
+            - secretRef
+            - storage
+            - subClusterAllocatable
+            - subClusterNodes
+            - subClusterUsage
+            type: object
+        type: object
+    served: true
+    storage: true

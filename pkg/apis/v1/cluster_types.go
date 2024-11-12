@@ -17,29 +17,171 @@ limitations under the License.
 package v1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // ClusterSpec defines the desired state of Cluster
 type ClusterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Cluster. Edit cluster_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
 }
 
 // ClusterStatus defines the observed state of Cluster
 type ClusterStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Addresses []Address    `json:"addresses,omitempty"`
+	Phase     ClusterPhase `json:"phase,omitempty"`
+
+	// Allocatable indicate the resources available for scheduling  within the cluster
+	Allocatable corev1.ResourceList `json:"allocatable,omitempty"`
+
+	// Usage indicate the resources that has used for the cluster
+	Usage corev1.ResourceList `json:"usage,omitempty"`
+
+	// Nodes describes remained resource of top N nodes based on remaining resources
+	Nodes []NodeLeftResources `json:"nodes"`
+
+	// SubClusterAllocated indicate the resources in the cluster that can be used for scheduling
+	SubClusterAllocatable corev1.ResourceList `json:"subClusterAllocatable"`
+
+	//SubClusterUsage indicate the resources used by clusters
+	SubClusterUsage corev1.ResourceList `json:"subClusterUsage"`
+
+	// SubClusterNodes indicted the resource of topN nodes based on remaining resources
+	SubClusterNodes []NodeLeftResources `json:"subClusterNodes"`
+
+	// Namespace indicated the resource occupation of a federal namespace in the workloadCluster
+	Namespace []NamespaceUsage `json:"namespace"`
+
+	// Conditions is an array of cluster conditions
+	Condition []ClusterCondition `json:"condition"`
+
+	// ClusterInfo
+	ClusterInfo ClusterInfo `json:"clusterInfo"`
+
+	//Endpoints of daemons running on the Cluster
+	DaemonEndpoint ClusterDaemonEndpoints `json:"daemonEndpoint"`
+
+	// Aggregate indicate which aggregate cluster contains
+	Aggregate []string `json:"aggregate"`
+
+	// SecretRef indicate the secretRef of sub cluster
+	SecretRef ClusterSecretRef `json:"secretRef"`
+
+	// Storage is an array of csi plugins installed in the subCluster
+	Storage []string `json:"storage"`
+
+	// CustomResourceDefinitions
+	CustomResourceDefinitions []string `json:"customResourceDefinitions"`
+
+	// NodeAggregate describe remained resource of top N nodes in same partition based on remaining resources
+	NodeAggregate map[string]NodesInAggregate `json:"nodeAggregate"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+type NodesInAggregate struct {
+	Nodes []NodeLeftResources `json:"nodes"`
+}
+
+type Address struct {
+	AddressIP string      `json:"addressIP,omitempty"`
+	Type      AddressType `json:"type,omitempty"`
+}
+
+type AddressType string
+
+const (
+	InternalIP AddressType = "InternalIP"
+	ExternalIP AddressType = "ExternalIP"
+)
+
+type ClusterPhase string
+
+const (
+	ONLINE     ClusterPhase = "Online"
+	OFFLINE    ClusterPhase = "Offline"
+	PENDING    ClusterPhase = "Pending"
+	TERMINATED ClusterPhase = "Terminated"
+)
+
+// NodeLeftResources Describes the remaining resources of the node
+type NodeLeftResources struct {
+	// Name  indicate the name of node
+	Name string `json:"name"`
+
+	Left corev1.ResourceList `json:"left"`
+}
+
+// NamespaceUsage Namespace Usage describe requests and limits resource of a federal namespace in the WorkloadCluster
+type NamespaceUsage struct {
+	Name string `json:"name"`
+
+	// Usage indicate the requests and limits resource of a federal namespaces in the WorkloadCluster
+	Usage corev1.ResourceRequirements `json:"usage"`
+}
+
+type ConditionStatus string
+
+const (
+	TrueCondition    = "True"
+	FalseCondition   = "False"
+	UnknownCondition = "Unknown"
+)
+
+type ClusterCondition struct {
+	// Type of cluster  condition
+	Type string `json:"type"`
+
+	// Status indicate the status of the condition
+	Status ConditionStatus `json:"status"`
+
+	// LastHeartbeatTime indicate Last time we got an update on a given condition.
+	LastHeartbeatTime metav1.Time `json:"lastHeartbeatTime"`
+
+	// LastTransitionTime indicate  the condition transit from one status to another
+	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
+
+	// Reason indicate the reason of the condition's  last transtion
+	Reason string `json:"reason"`
+
+	// Message indicate details about last transtion
+	Message string `json:"message"`
+}
+
+type ClusterInfo struct {
+	Major        string `json:"major"`
+	Minor        string `json:"minor"`
+	GitVersion   string `json:"gitVersion"`
+	GitCommit    string `json:"gitCommit"`
+	GitTreeState string `json:"gitTreeState"`
+	BuildDate    string `json:"buildDate"`
+	GoVersion    string `json:"goVersion"`
+	Compiler     string `json:"compiler"`
+	Platform     string `json:"platform"`
+}
+
+// DaemonEndpoint defined information about a single Daemon endpoint
+type DaemonEndpoint struct {
+	Port     int32  `json:"port"`
+	Protocol string `json:"protocol"`
+	Address  string `json:"address"`
+}
+
+type ClusterDaemonEndpoints struct {
+
+	// AstroletEndpoint indicate Endpoint on which astrolet is listening
+	AstroletEndpoint DaemonEndpoint `json:"astroletEndpoint"`
+
+	// ApiServerEndpoint indicate Endpoint on which KubeApiserver is listening in Sub Cluster
+	ApiServerEndpoint DaemonEndpoint `json:"apiServerEndpoint"`
+}
+
+type ClusterSecretRef struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Cluster is the Schema for the clusters API
 type Cluster struct {
@@ -50,7 +192,7 @@ type Cluster struct {
 	Status ClusterStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterList contains a list of Cluster
 type ClusterList struct {

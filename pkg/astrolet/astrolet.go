@@ -25,13 +25,16 @@ type AstroLet struct {
 
 func (as *AstroLet) Run(ctx context.Context) {
 	cache.InitClientCache(ctx, as.SubClient, as.SubClient, as.InformerResyncPeriod, as.ClusterName, as.CoreConfig, as.SubConfig)
+	go as.newCoreManager().Run(ctx)
+	go as.newSubClusterManager().Run(ctx)
+	go as.startHttpServer(ctx)
 }
 
-func (as *AstroLet) newSubManager(ctx context.Context) *core_cluster.CoreManager {
+func (as *AstroLet) newCoreManager() *core_cluster.CoreManager {
 	return &core_cluster.CoreManager{}
 }
 
-func (as *AstroLet) newSubClusterManager(ctx context.Context) *sub_cluster.SubManager {
+func (as *AstroLet) newSubClusterManager() *sub_cluster.SubManager {
 	return &sub_cluster.SubManager{}
 }
 
