@@ -1,7 +1,7 @@
 package cache
 
 import (
-	astrov1 "AstroKube/pkg/apis/v1"
+	astrov1 "AstroKube/pkg/apis/astrocore/v1"
 	"context"
 	"fmt"
 	corev1 "k8s.io/api/core/v1"

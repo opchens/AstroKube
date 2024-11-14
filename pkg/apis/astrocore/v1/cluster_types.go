@@ -22,10 +22,7 @@ import (
 )
 
 // ClusterSpec defines the desired state of Cluster
-type ClusterSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-}
+type ClusterSpec struct{}
 
 // ClusterStatus defines the observed state of Cluster
 type ClusterStatus struct {
@@ -192,6 +189,7 @@ type Cluster struct {
 	Status ClusterStatus `json:"status,omitempty"`
 }
 
+// +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterList contains a list of Cluster
@@ -199,8 +197,4 @@ type ClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Cluster `json:"items"`
-}
-
-func init() {
-	SchemeBuilder.Register(&Cluster{}, &ClusterList{})
 }

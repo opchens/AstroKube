@@ -5,7 +5,7 @@ package main
 
 import (
 	"AstroKube/cmd/app"
-	astrov1 "AstroKube/pkg/apis/v1"
+	astrov1 "AstroKube/pkg/apis/astrocore/v1"
 	"context"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
