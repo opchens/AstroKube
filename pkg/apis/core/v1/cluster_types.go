@@ -189,7 +189,6 @@ type Cluster struct {
 	Status ClusterStatus `json:"status,omitempty"`
 }
 
-// +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterList contains a list of Cluster
