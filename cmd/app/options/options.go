@@ -2,6 +2,13 @@ package options
 
 import "time"
 
+const (
+	DefaultClusterName        = "astro-sub"
+	DefaultFedNamespacePrefix = "ast"
+	DefaultMode               = "normal"
+	DefaultKubeClusterDomain  = "cluster.local"
+)
+
 type ServerRunOptions struct {
 	CoreClusterKubeConfigPath string
 	SubClusterKubeConfigPath  string
@@ -10,6 +17,11 @@ type ServerRunOptions struct {
 	FedNamespacePrefix        string
 	SubClusterExternalIp      string
 	Mode                      string
+
+	InformerResyncPeriod time.Duration
+	LeaseDurationSeconds time.Duration
+	HeartbeatFrequency   time.Duration
+	ForceSyncFrequency   time.Duration
 
 	LeaderElect                  bool
 	LeaderElectLeaseDuration     time.Duration
@@ -25,6 +37,15 @@ type ServerRunOptions struct {
 	KubeApiBurstForCore int
 }
 
-func NewServerRunOptions() ServerRunOptions {
-	return ServerRunOptions{}
+func SetDefaultOpts(opts *ServerRunOptions) error {
+	if opts.ClusterName == "" {
+		opts.ClusterName = DefaultClusterName
+	}
+	if opts.KubeClusterDomain == "" {
+		opts.KubeClusterDomain = DefaultKubeClusterDomain
+	}
+	if opts.Mode == "" {
+		opts.Mode = DefaultMode
+	}
+	return nil
 }

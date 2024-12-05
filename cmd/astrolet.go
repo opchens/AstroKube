@@ -5,7 +5,8 @@ package main
 
 import (
 	"AstroKube/cmd/app"
-	astrov1 "AstroKube/pkg/apis/astrocore/v1"
+	"AstroKube/cmd/app/options"
+	astrov1 "AstroKube/pkg/apis/core/v1"
 	"context"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -36,7 +37,10 @@ func main() {
 		cancel()
 	}()
 
-	command := app.NewAstroLetCommand(ctx)
+	var opts options.ServerRunOptions
+	options.SetDefaultOpts(&opts)
+
+	command := app.NewAstroLetCommand(ctx, opts)
 	err := command.Execute()
 	if err != nil {
 		os.Exit(1)

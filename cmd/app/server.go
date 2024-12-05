@@ -2,9 +2,9 @@ package app
 
 import (
 	"AstroKube/cmd/app/options"
-	_ "AstroKube/pkg/apis"
 	"AstroKube/pkg/astrolet"
 	"AstroKube/pkg/astrolet/utils"
+	"AstroKube/pkg/client/clientset/versioned"
 	"context"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
@@ -24,8 +24,7 @@ import (
 
 const componentAstroLet = "AstroLet"
 
-func NewAstroLetCommand(ctx context.Context) *cobra.Command {
-	opts := options.NewServerRunOptions()
+func NewAstroLetCommand(ctx context.Context, opts options.ServerRunOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: componentAstroLet,
 		Long: `The AstroLet is the primary "cluster agent" that runs on each
@@ -52,14 +51,14 @@ func runCmd(ctx context.Context, opts options.ServerRunOptions) error {
 	os.Setenv("CORECLUSTERKUBECONFIG", opts.CoreClusterKubeConfigPath)
 	klog.InfoS("Starting AstroLet ...", "LeaderElect", opts.LeaderElect)
 
-	subClientConfig, subClientSet, err := initializeSubClusterClient(ctx, opts.SubClusterKubeConfigPath, opts.KubeApiQPSForSub, opts.KubeApiBurstForSub)
+	subClientConfig, subClientSet, subAstClientSet, err := initializeSubClusterClient(ctx, opts.SubClusterKubeConfigPath, opts.KubeApiQPSForSub, opts.KubeApiBurstForSub)
 	if err != nil {
 		klog.Errorf("cannot initialize clientset for  sub cluster: %v", err)
 		return err
 	}
 
 	if !opts.LeaderElect {
-		run(ctx, opts, subClientConfig, subClientSet)
+		run(ctx, opts, subClientConfig, subClientSet, subAstClientSet)
 		panic("unreachable")
 	}
 	id, err := os.Hostname()
@@ -91,7 +90,7 @@ func runCmd(ctx context.Context, opts options.ServerRunOptions) error {
 		RetryPeriod:   opts.LeaderElectRetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				run(ctx, opts, subClientConfig, subClientSet)
+				run(ctx, opts, subClientConfig, subClientSet, subAstClientSet)
 			},
 			OnStoppedLeading: func() {
 				klog.Fatalf("leader election lost")
@@ -110,54 +109,74 @@ func runCmd(ctx context.Context, opts options.ServerRunOptions) error {
 	panic("unreachable")
 }
 
-func run(ctx context.Context, opts options.ServerRunOptions, subClientConfig *rest.Config, subClientSet kubernetes.Interface) error {
+func run(ctx context.Context, opts options.ServerRunOptions, subClientConfig *rest.Config,
+	subClientSet kubernetes.Interface, subAstClientSet versioned.Interface) error {
 	ctx = utils.ContextInit(ctx)
-	coreConfig, coreClientSet, err := initializeCoreClusterClient(ctx, opts.CoreClusterKubeConfigPath, opts.KubeApiQPSForCore, opts.KubeApiBurstForCore)
+	klog.Info("initialize core cluster client ...")
+	coreConfig, coreClientSet, coreAstClientSet, err := initializeCoreClusterClient(ctx, opts.CoreClusterKubeConfigPath, opts.KubeApiQPSForCore, opts.KubeApiBurstForCore)
 	if err != nil {
 		klog.Errorf("cannot initialize clientset for core cluster: %v", err)
 		return err
 	}
-	astrolet := NewAstroKet(coreConfig, coreClientSet, subClientConfig, subClientSet, opts)
+	astrolet := NewAstroKet(coreConfig, coreClientSet, subClientConfig, subClientSet, subAstClientSet, coreAstClientSet, opts)
+	klog.Info(" astrolet running ... ")
 	astrolet.Run(ctx)
+
+	utils.ContextStart(ctx)
+
 	utils.ContextShutdown(ctx)
 	return nil
 }
 
-func initializeSubClusterClient(ctx context.Context, kubeconfig string, kubeApiOPS float32, kubeApiBurst int) (*rest.Config, kubernetes.Interface, error) {
+func initializeSubClusterClient(ctx context.Context, kubeconfig string, kubeApiOPS float32, kubeApiBurst int) (*rest.Config, kubernetes.Interface, versioned.Interface, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		klog.Warning("inclusterConfig error, build config from flags ...")
+		config, err = clientcmd.BuildConfigFromFlags("", "/Users/apple/.kube/config")
 		if err != nil {
 			klog.Errorf("cannot load config for sub cluster: %v", err)
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
+
 	config.QPS = kubeApiOPS
 	config.Burst = kubeApiBurst
+
 	clientSet, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return config, clientSet, nil
+
+	asclientSet, err := versioned.NewForConfig(config)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return config, clientSet, asclientSet, nil
 }
 
-func initializeCoreClusterClient(ctx context.Context, kubeconfig string, kubeApiOps float32, kubeApiBurst int) (*rest.Config, kubernetes.Interface, error) {
+func initializeCoreClusterClient(ctx context.Context, kubeconfig string, kubeApiOps float32, kubeApiBurst int) (*rest.Config, kubernetes.Interface, versioned.Interface, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	config, err := clientcmd.BuildConfigFromFlags("", "/Users/apple/.kube/core.config")
 	if err != nil {
 		klog.Errorf("cannot load config for core cluster: %v", err)
 	}
+
 	config.QPS = kubeApiOps
 	config.Burst = kubeApiBurst
+
 	clientSet, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return config, clientSet, nil
 
+	astclientSet, err := versioned.NewForConfig(config)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return config, clientSet, astclientSet, nil
 }
 
 func createRecorder(kubeClient kubernetes.Interface, userAgent string) record.EventRecorder {
@@ -167,8 +186,24 @@ func createRecorder(kubeClient kubernetes.Interface, userAgent string) record.Ev
 	return eventBroadcaster.NewRecorder(clientgokubescheme.Scheme, v1.EventSource{Component: userAgent})
 }
 
-func NewAstroKet(coreConfig *rest.Config, coreClientSet kubernetes.Interface, subClientConfig *rest.Config, subClientSet kubernetes.Interface, opts options.ServerRunOptions) *astrolet.AstroLet {
+func NewAstroKet(coreConfig *rest.Config, coreClientSet kubernetes.Interface,
+	subClientConfig *rest.Config, subClientSet kubernetes.Interface, subAstClientSet, coreAstClientSet versioned.Interface,
+	opts options.ServerRunOptions) *astrolet.AstroLet {
 	// init AstroLet
-	return &astrolet.AstroLet{}
+	return &astrolet.AstroLet{
+		CoreClient: coreClientSet,
+		CoreConfig: coreConfig,
+		SubClient:  subClientSet,
+		SubConfig:  subClientConfig,
+
+		SubAsClient:  subAstClientSet,
+		CoreAsClient: coreAstClientSet,
+
+		ClusterName:   opts.ClusterName,
+		SubExternalIP: opts.SubClusterExternalIp,
+		Mode:          opts.Mode,
+
+		InformerResyncPeriod: opts.InformerResyncPeriod,
+	}
 
 }

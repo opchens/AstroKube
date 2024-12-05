@@ -16,18 +16,18 @@ limitations under the License.
 
 // Package v1 contains API Schema definitions for the astro v1 API group
 // +kubebuilder:object:generate=true
-// +groupName=astro.opchens
+// +groupName=astro.opchens.io
 package v1
 
 import (
-	"AstroKube/pkg/apis/astrocore"
+	"AstroKube/pkg/apis/core"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // SchemeGroupVersion is group version used to register these objects
-var SchemeGroupVersion = schema.GroupVersion{Group: astrocore.GroupName, Version: "v1alpha1"}
+var SchemeGroupVersion = schema.GroupVersion{Group: core.GroupName, Version: "v1"}
 
 // Kind takes an unqualified kind and returns back a Group qualified GroupKind
 func Kind(kind string) schema.GroupKind {

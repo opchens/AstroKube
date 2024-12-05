@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: workloads.astro
+  name: workloads.astro.opchens.io
 spec:
-  group: astro
+  group: astro.opchens.io
   names:
     kind: Workload
     listKind: WorkloadList
