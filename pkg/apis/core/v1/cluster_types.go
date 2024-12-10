@@ -36,43 +36,43 @@ type ClusterStatus struct {
 	Usage corev1.ResourceList `json:"usage,omitempty"`
 
 	// Nodes describes remained resource of top N nodes based on remaining resources
-	Nodes []NodeLeftResources `json:"nodes"`
+	Nodes []NodeLeftResources `json:"nodes,omitempty"`
 
 	// SubClusterAllocated indicate the resources in the cluster that can be used for scheduling
-	SubClusterAllocatable corev1.ResourceList `json:"subClusterAllocatable"`
+	SubClusterAllocatable corev1.ResourceList `json:"subClusterAllocatable,omitempty"`
 
 	//SubClusterUsage indicate the resources used by clusters
-	SubClusterUsage corev1.ResourceList `json:"subClusterUsage"`
+	SubClusterUsage corev1.ResourceList `json:"subClusterUsage,omitempty"`
 
 	// SubClusterNodes indicted the resource of topN nodes based on remaining resources
-	SubClusterNodes []NodeLeftResources `json:"subClusterNodes"`
+	SubClusterNodes []NodeLeftResources `json:"subClusterNodes,omitempty"`
 
 	// Namespace indicated the resource occupation of a federal namespace in the workloadCluster
-	Namespace []NamespaceUsage `json:"namespace"`
+	Namespace []NamespaceUsage `json:"namespace,omitempty"`
 
 	// Conditions is an array of cluster conditions
-	Condition []ClusterCondition `json:"condition"`
+	Condition []ClusterCondition `json:"condition,omitempty"`
 
 	// ClusterInfo
-	ClusterInfo ClusterInfo `json:"clusterInfo"`
+	ClusterInfo ClusterInfo `json:"clusterInfo,omitempty"`
 
 	//Endpoints of daemons running on the Cluster
-	DaemonEndpoint ClusterDaemonEndpoints `json:"daemonEndpoint"`
+	DaemonEndpoint ClusterDaemonEndpoints `json:"daemonEndpoint,omitempty"`
 
 	// Aggregate indicate which aggregate cluster contains
-	Aggregate []string `json:"aggregate"`
+	Aggregate []string `json:"aggregate,omitempty"`
 
 	// SecretRef indicate the secretRef of sub cluster
-	SecretRef ClusterSecretRef `json:"secretRef"`
+	SecretRef ClusterSecretRef `json:"secretRef,omitempty"`
 
 	// Storage is an array of csi plugins installed in the subCluster
-	Storage []string `json:"storage"`
+	Storage []string `json:"storage,omitempty"`
 
 	// CustomResourceDefinitions
-	CustomResourceDefinitions []string `json:"customResourceDefinitions"`
+	CustomResourceDefinitions []string `json:"customResourceDefinitions,omitempty"`
 
 	// NodeAggregate describe remained resource of top N nodes in same partition based on remaining resources
-	NodeAggregate map[string]NodesInAggregate `json:"nodeAggregate"`
+	NodeAggregate map[string]NodesInAggregate `json:"nodeAggregate,omitempty"`
 }
 
 type NodesInAggregate struct {
@@ -178,6 +178,11 @@ type ClusterSecretRef struct {
 }
 
 // +genclient
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Platform",type="string",priority=0,JSONPath=".Status.ClusterInfo.Platform",description="The cluster status"
+// +kubebuilder:printcolumn:name="Status",type="string",priority=0,JSONPath=".Status.Phase",description="The cluster status"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Cluster is the Schema for the clusters API
@@ -189,6 +194,7 @@ type Cluster struct {
 	Status ClusterStatus `json:"status,omitempty"`
 }
 
+// +kubebuilder:object:root=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterList contains a list of Cluster
@@ -197,3 +203,9 @@ type ClusterList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Cluster `json:"items"`
 }
+
+const (
+	ClusterLevelLabel       = "astro.opchens.io/cluster-level"
+	ClusterLevelCoreCluster = "1"
+	ClusterLevelSubCluster  = "2"
+)

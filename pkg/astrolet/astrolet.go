@@ -20,10 +20,12 @@ type AstroLet struct {
 	CoreAsClient         versioned.Interface
 	InformerResyncPeriod time.Duration
 	HeartbeatFrequency   time.Duration
+	ForceSyncFrequency   time.Duration
 	ClusterName          string
 	SubExternalIP        string
 	MetricsAddr          string
 	ListenPort           int32
+	NamespacePrefix      string
 	Mode                 string
 }
 
@@ -41,7 +43,11 @@ func (as *AstroLet) newCoreManager() *core_cluster.CoreManager {
 }
 
 func (as *AstroLet) newSubClusterManager() *sub_cluster.SubManager {
-	return &sub_cluster.SubManager{}
+	return &sub_cluster.SubManager{
+		ClusterName:        as.ClusterName,
+		NamespacePrefix:    as.NamespacePrefix,
+		ForceSyncFrequency: as.ForceSyncFrequency,
+	}
 }
 
 func (as *AstroLet) startHttpServer(ctx context.Context) {

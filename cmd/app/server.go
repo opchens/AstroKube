@@ -199,10 +199,12 @@ func NewAstroKet(coreConfig *rest.Config, coreClientSet kubernetes.Interface,
 		SubAsClient:  subAstClientSet,
 		CoreAsClient: coreAstClientSet,
 
-		ClusterName:   opts.ClusterName,
-		SubExternalIP: opts.SubClusterExternalIp,
-		Mode:          opts.Mode,
+		ClusterName:     opts.ClusterName,
+		SubExternalIP:   opts.SubClusterExternalIp,
+		NamespacePrefix: opts.FedNamespacePrefix,
+		Mode:            opts.Mode,
 
+		ForceSyncFrequency:   opts.ForceSyncFrequency,
 		InformerResyncPeriod: opts.InformerResyncPeriod,
 	}
 

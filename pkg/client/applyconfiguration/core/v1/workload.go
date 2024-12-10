@@ -41,7 +41,7 @@ func Workload(name, namespace string) *WorkloadApplyConfiguration {
 	b.WithName(name)
 	b.WithNamespace(namespace)
 	b.WithKind("Workload")
-	b.WithAPIVersion("astro/v1")
+	b.WithAPIVersion("astro.opchens.io/v1")
 	return b
 }
 

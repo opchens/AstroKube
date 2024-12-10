@@ -31,7 +31,7 @@ type AstroV1Interface interface {
 	WorkloadsGetter
 }
 
-// AstroV1Client is used to interact with features provided by the astro group.
+// AstroV1Client is used to interact with features provided by the astro.opchens.io group.
 type AstroV1Client struct {
 	restClient rest.Interface
 }

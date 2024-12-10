@@ -7,6 +7,8 @@ const (
 	DefaultFedNamespacePrefix = "ast"
 	DefaultMode               = "normal"
 	DefaultKubeClusterDomain  = "cluster.local"
+
+	DefaultForceSyncFrequency = time.Second * 300
 )
 
 type ServerRunOptions struct {
@@ -46,6 +48,9 @@ func SetDefaultOpts(opts *ServerRunOptions) error {
 	}
 	if opts.Mode == "" {
 		opts.Mode = DefaultMode
+	}
+	if opts.ForceSyncFrequency == 0 {
+		opts.ForceSyncFrequency = DefaultForceSyncFrequency
 	}
 	return nil
 }

@@ -28,7 +28,7 @@ import (
 // apply configuration type exists for the given GroupVersionKind.
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
-	// Group=astro, Version=v1
+	// Group=astro.opchens.io, Version=v1
 	case v1.SchemeGroupVersion.WithKind("Address"):
 		return &corev1.AddressApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("Cluster"):

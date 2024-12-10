@@ -35,6 +35,7 @@ var (
 type clientCache struct {
 	Config               *rest.Config
 	Client               kubernetes.Interface
+	AstroClient          versioned.Interface
 	NodeLister           v1.NodeLister
 	ClusterLister        astrov1.ClusterLister
 	NamespaceLister      v1.NamespaceLister
@@ -160,8 +161,9 @@ func InitClientCache(ctx context.Context, subClient, coreClient kubernetes.Inter
 	klog.Info("finish core cache sync ")
 
 	CoreClientCache = &clientCache{
-		Config: coreConfig,
-		Client: coreClient,
+		Config:      coreConfig,
+		Client:      coreClient,
+		AstroClient: coreAsClient,
 		//NodeLister:      CoreSharedInformerFactory.Core().V1().Nodes().Lister(),
 		//NamespaceLister: CoreSharedInformerFactory.Core().V1().Namespaces().Lister(),
 		PodLister: CorePodInformerFactory.Core().V1().Pods().Lister(),
@@ -175,8 +177,9 @@ func InitClientCache(ctx context.Context, subClient, coreClient kubernetes.Inter
 	}
 
 	SubClientCache = &clientCache{
-		Config: subConfig,
-		Client: subClient,
+		Config:      subConfig,
+		Client:      subClient,
+		AstroClient: subAsClient,
 		//NodeLister:      SubSharedInformerFactory.Core().V1().Nodes().Lister(),
 		//NamespaceLister: SubSharedInformerFactory.Core().V1().Namespaces().Lister(),
 		PodLister: SubSharedInformerFactory.Core().V1().Pods().Lister(),

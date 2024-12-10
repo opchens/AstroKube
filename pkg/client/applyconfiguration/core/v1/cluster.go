@@ -41,7 +41,7 @@ func Cluster(name, namespace string) *ClusterApplyConfiguration {
 	b.WithName(name)
 	b.WithNamespace(namespace)
 	b.WithKind("Cluster")
-	b.WithAPIVersion("astro/v1")
+	b.WithAPIVersion("astro.opchens.io/v1")
 	return b
 }
 

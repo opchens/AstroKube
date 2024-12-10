@@ -14,7 +14,19 @@ spec:
     singular: cluster
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: The cluster status
+      jsonPath: .Status.ClusterInfo.Platform
+      name: Platform
+      type: string
+    - description: The cluster status
+      jsonPath: .Status.Phase
+      name: Status
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: Cluster is the Schema for the clusters API
@@ -376,21 +388,9 @@ spec:
                   x-kubernetes-int-or-string: true
                 description: Usage indicate the resources that has used for the cluster
                 type: object
-            required:
-            - aggregate
-            - clusterInfo
-            - condition
-            - customResourceDefinitions
-            - daemonEndpoint
-            - namespace
-            - nodeAggregate
-            - nodes
-            - secretRef
-            - storage
-            - subClusterAllocatable
-            - subClusterNodes
-            - subClusterUsage
             type: object
         type: object
     served: true
     storage: true
+    subresources:
+      status: {}
