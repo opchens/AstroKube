@@ -208,4 +208,5 @@ const (
 	ClusterLevelLabel       = "astro.opchens.io/cluster-level"
 	ClusterLevelCoreCluster = "1"
 	ClusterLevelSubCluster  = "2"
+	SubClusterNode          = "astro.opchens.io/sub-cluster-node"
 )
