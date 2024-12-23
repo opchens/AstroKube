@@ -173,8 +173,42 @@ type ClusterDaemonEndpoints struct {
 }
 
 type ClusterSecretRef struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
+	Name      string `json:"name,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+}
+
+type AstroletConfiguration struct {
+	Auth                 *Auth   `json:"auth,omitempty"`
+	Target               *Target `json:"target,omitempty"`
+	Image                string  `json:"image,omitempty"`
+	Template             string  `json:"template,omitempty"`
+	HeartbeatFrequency   int64   `json:"heartbeatFrequency,omitempty"`
+	LeaseDurationSeconds int64   `json:"leaseDurationSeconds,omitempty"`
+	ForceSyncFrequency   int64   `json:"forceSyncFrequency,omitempty"`
+	NamespacePrefix      string  `json:"namespacePrefix,omitempty"`
+}
+
+type Auth struct {
+	Type       string `json:"type,omitempty"`
+	Kubeconfig string `json:"kubeconfig,omitempty"`
+	Token      string
+}
+
+type Target struct {
+	// Apiserver represents the IPaddress
+	Apiserver string `json:"apiserver,omitempty"`
+}
+
+type Info struct {
+	Major        string `json:"major" protobuf:"bytes,1,opt,name=major"`
+	Minor        string `json:"minor" protobuf:"bytes,2,opt,name=minor"`
+	GitVersion   string `json:"gitVersion" protobuf:"bytes,3,opt,name=gitVersion"`
+	GitCommit    string `json:"gitCommit" protobuf:"bytes,4,opt,name=gitCommit"`
+	GitTreeState string `json:"gitTreeState" protobuf:"bytes,5,opt,name=gitTreeState"`
+	BuildDate    string `json:"buildDate" protobuf:"bytes,6,opt,name=buildDate"`
+	GoVersion    string `json:"goVersion" protobuf:"bytes,7,opt,name=goVersion"`
+	Compiler     string `json:"compiler" protobuf:"bytes,8,opt,name=compiler"`
+	Platform     string `json:"platform" protobuf:"bytes,9,opt,name=platform"`
 }
 
 // +genclient

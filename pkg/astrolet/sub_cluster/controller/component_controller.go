@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -47,17 +46,9 @@ func (c ComponentsController) Run(ctx context.Context) {
 }
 
 func (c ComponentsController) sync(ctx context.Context) {
-	cluster, err := clientcache.CoreClientCache.AstroClient.AstroV1().Clusters("default").Get(ctx, c.ClusterName, metav1.GetOptions{})
+	cluster, err := clientcache.CoreClientCache.ClusterLister.Clusters("default").Get(c.ClusterName)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			cluster = c.newCluster(ctx)
-			_, err = clientcache.CoreClientCache.AstroClient.AstroV1().Clusters("default").Create(ctx, cluster, metav1.CreateOptions{})
-			if err != nil && errors.IsAlreadyExists(err) {
-				klog.Error("register cluster failed, error: ", err.Error())
-			}
-		} else {
-			klog.Error("cluster get failed from Core cluster: ", err.Error())
-		}
+		klog.Error("cluster get failed from Core cluster: ", err.Error())
 		return
 	}
 	nCluster := cluster.DeepCopy()

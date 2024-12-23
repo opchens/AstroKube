@@ -21,6 +21,7 @@ type AstroLet struct {
 	InformerResyncPeriod time.Duration
 	HeartbeatFrequency   time.Duration
 	ForceSyncFrequency   time.Duration
+	LeaseDurationSeconds time.Duration
 	ClusterName          string
 	SubExternalIP        string
 	MetricsAddr          string
@@ -39,7 +40,17 @@ func (as *AstroLet) Run(ctx context.Context) {
 }
 
 func (as *AstroLet) newCoreManager() *core_cluster.CoreManager {
-	return &core_cluster.CoreManager{}
+	return &core_cluster.CoreManager{
+		ExternalIp:           as.SubExternalIP,
+		ClusterName:          as.ClusterName,
+		HeartbeatFrequency:   as.HeartbeatFrequency,
+		LeaseDurationSeconds: as.LeaseDurationSeconds,
+		ForceSyncFrequency:   as.ForceSyncFrequency,
+		NamespacePrefix:      as.NamespacePrefix,
+
+		PlanetApiServerProtocol: "http",
+		PlanetApiServerPort:     16443,
+	}
 }
 
 func (as *AstroLet) newSubClusterManager() *sub_cluster.SubManager {

@@ -77,35 +77,35 @@ func InitClientCache(ctx context.Context, subClient, coreClient kubernetes.Inter
 	CoreAstroSharedInformerFactory = astroInformer.NewSharedInformerFactory(coreAsClient, informerResyncPeriod)
 	klog.Info("starting sharedInformerFactory informers")
 	subPodInformer := SubSharedInformerFactory.Core().V1().Pods().Informer()
-	//subNodeInformer := SubSharedInformerFactory.Core().V1().Nodes().Informer()
-	//subSvcInformer := SubSharedInformerFactory.Core().V1().Services().Informer()
-	////subSecretInformer := SubSharedInformerFactory.Core().V1().Secrets().Informer()
-	//subConfigMapInformer := SubSharedInformerFactory.Core().V1().ConfigMaps().Informer()
-	//subIngressInformer := SubSharedInformerFactory.Networking().V1().Ingresses().Informer()
-	//subIngressClassInformer := SubSharedInformerFactory.Networking().V1().IngressClasses().Informer()
-	//subNsInformer := SubSharedInformerFactory.Core().V1().Namespaces().Informer()
-	//subStatefulSetInformer := SubSharedInformerFactory.Apps().V1().StatefulSets().Informer()
-	//subReplicaSetInformer := SubSharedInformerFactory.Apps().V1().ReplicaSets().Informer()
-	//subDeploymentInformer := SubSharedInformerFactory.Apps().V1().Deployments().Informer()
-	//subDaemonsetInformer := SubSharedInformerFactory.Apps().V1().DaemonSets().Informer()
-	//subEventInformer := SubSharedInformerFactory.Core().V1().Events().Informer()
-	//subPvcInformer := SubSharedInformerFactory.Core().V1().PersistentVolumeClaims().Informer()
-	//subPvInformer := SubSharedInformerFactory.Core().V1().PersistentVolumes().Informer()
-	//subServiceAccountInformer := SubSharedInformerFactory.Core().V1().ServiceAccounts().Informer()
+	subNodeInformer := SubSharedInformerFactory.Core().V1().Nodes().Informer()
+	subSvcInformer := SubSharedInformerFactory.Core().V1().Services().Informer()
+	subSecretInformer := SubSharedInformerFactory.Core().V1().Secrets().Informer()
+	subConfigMapInformer := SubSharedInformerFactory.Core().V1().ConfigMaps().Informer()
+	subIngressInformer := SubSharedInformerFactory.Networking().V1().Ingresses().Informer()
+	subIngressClassInformer := SubSharedInformerFactory.Networking().V1().IngressClasses().Informer()
+	subNsInformer := SubSharedInformerFactory.Core().V1().Namespaces().Informer()
+	subStatefulSetInformer := SubSharedInformerFactory.Apps().V1().StatefulSets().Informer()
+	subReplicaSetInformer := SubSharedInformerFactory.Apps().V1().ReplicaSets().Informer()
+	subDeploymentInformer := SubSharedInformerFactory.Apps().V1().Deployments().Informer()
+	subDaemonsetInformer := SubSharedInformerFactory.Apps().V1().DaemonSets().Informer()
+	subEventInformer := SubSharedInformerFactory.Core().V1().Events().Informer()
+	subPvcInformer := SubSharedInformerFactory.Core().V1().PersistentVolumeClaims().Informer()
+	subPvInformer := SubSharedInformerFactory.Core().V1().PersistentVolumes().Informer()
+	subServiceAccountInformer := SubSharedInformerFactory.Core().V1().ServiceAccounts().Informer()
 	subClusterInformer := SubAstroSharedInformerFactory.Astro().V1().Clusters().Informer()
 
 	corePodInformer := CorePodInformerFactory.Core().V1().Pods().Informer()
-	//coreNodeInformer := CoreSharedInformerFactory.Core().V1().Nodes().Informer()
-	//coreSvcInformer := CoreSharedInformerFactory.Core().V1().Services().Informer()
-	//coreSecretInformer := CoreSharedInformerFactory.Core().V1().Secrets().Informer()
-	//coreStatefulSetInformer := CoreSharedInformerFactory.Apps().V1().StatefulSets().Informer()
-	//coreCmInformer := CoreSharedInformerFactory.Core().V1().ConfigMaps().Informer()
-	//coreIngressInformer := CoreSharedInformerFactory.Networking().V1().Ingresses().Informer()
-	//coreIngressClassInformer := CoreSharedInformerFactory.Networking().V1().IngressClasses().Informer()
-	//coreNsInformer := CoreSharedInformerFactory.Core().V1().Namespaces().Informer()
-	//corePvcInformer := CoreSharedInformerFactory.Core().V1().PersistentVolumeClaims().Informer()
-	//corePvInformer := CoreSharedInformerFactory.Core().V1().PersistentVolumes().Informer()
-	//coreServiceAccountInformer := CoreSharedInformerFactory.Core().V1().ServiceAccounts().Informer()
+	coreNodeInformer := CoreSharedInformerFactory.Core().V1().Nodes().Informer()
+	coreSvcInformer := CoreSharedInformerFactory.Core().V1().Services().Informer()
+	coreSecretInformer := CoreSharedInformerFactory.Core().V1().Secrets().Informer()
+	coreStatefulSetInformer := CoreSharedInformerFactory.Apps().V1().StatefulSets().Informer()
+	coreCmInformer := CoreSharedInformerFactory.Core().V1().ConfigMaps().Informer()
+	coreIngressInformer := CoreSharedInformerFactory.Networking().V1().Ingresses().Informer()
+	coreIngressClassInformer := CoreSharedInformerFactory.Networking().V1().IngressClasses().Informer()
+	coreNsInformer := CoreSharedInformerFactory.Core().V1().Namespaces().Informer()
+	corePvcInformer := CoreSharedInformerFactory.Core().V1().PersistentVolumeClaims().Informer()
+	corePvInformer := CoreSharedInformerFactory.Core().V1().PersistentVolumes().Informer()
+	coreServiceAccountInformer := CoreSharedInformerFactory.Core().V1().ServiceAccounts().Informer()
 	coreClusterInformer := CoreAstroSharedInformerFactory.Astro().V1().Clusters().Informer()
 
 	go SubSharedInformerFactory.Start(ctx.Done())
@@ -116,21 +116,21 @@ func InitClientCache(ctx context.Context, subClient, coreClient kubernetes.Inter
 
 	if !cache.WaitForCacheSync(ctx.Done(),
 		subPodInformer.HasSynced,
-		//subNodeInformer.HasSynced,
-		//subSvcInformer.HasSynced,
-		////subSecretInformer.HasSynced,
-		//subConfigMapInformer.HasSynced,
-		//subIngressInformer.HasSynced,
-		//subIngressClassInformer.HasSynced,
-		//subNsInformer.HasSynced,
-		//subStatefulSetInformer.HasSynced,
-		//subReplicaSetInformer.HasSynced,
-		//subDeploymentInformer.HasSynced,
-		//subDaemonsetInformer.HasSynced,
-		//subEventInformer.HasSynced,
-		//subPvcInformer.HasSynced,
-		//subPvInformer.HasSynced,
-		//subServiceAccountInformer.HasSynced,
+		subNodeInformer.HasSynced,
+		subSvcInformer.HasSynced,
+		subSecretInformer.HasSynced,
+		subConfigMapInformer.HasSynced,
+		subIngressInformer.HasSynced,
+		subIngressClassInformer.HasSynced,
+		subNsInformer.HasSynced,
+		subStatefulSetInformer.HasSynced,
+		subReplicaSetInformer.HasSynced,
+		subDeploymentInformer.HasSynced,
+		subDaemonsetInformer.HasSynced,
+		subEventInformer.HasSynced,
+		subPvcInformer.HasSynced,
+		subPvInformer.HasSynced,
+		subServiceAccountInformer.HasSynced,
 		subClusterInformer.HasSynced,
 	) {
 		runtime.HandleError(fmt.Errorf("WaitForSubClusterCacheSync failed"))
@@ -140,17 +140,17 @@ func InitClientCache(ctx context.Context, subClient, coreClient kubernetes.Inter
 	klog.Info("finish sub cache sync ")
 	if !cache.WaitForCacheSync(ctx.Done(),
 		corePodInformer.HasSynced,
-		//coreNodeInformer.HasSynced,
-		//coreSvcInformer.HasSynced,
-		//coreSecretInformer.HasSynced,
-		//coreStatefulSetInformer.HasSynced,
-		//coreCmInformer.HasSynced,
-		//coreIngressInformer.HasSynced,
-		//coreIngressClassInformer.HasSynced,
-		//coreNsInformer.HasSynced,
-		//corePvcInformer.HasSynced,
-		//corePvInformer.HasSynced,
-		//coreServiceAccountInformer.HasSynced,
+		coreNodeInformer.HasSynced,
+		coreSvcInformer.HasSynced,
+		coreSecretInformer.HasSynced,
+		coreStatefulSetInformer.HasSynced,
+		coreCmInformer.HasSynced,
+		coreIngressInformer.HasSynced,
+		coreIngressClassInformer.HasSynced,
+		coreNsInformer.HasSynced,
+		corePvcInformer.HasSynced,
+		corePvInformer.HasSynced,
+		coreServiceAccountInformer.HasSynced,
 		coreClusterInformer.HasSynced,
 	) {
 		runtime.HandleError(fmt.Errorf("WaitForCoreClusterCacheSync failed"))
@@ -161,42 +161,42 @@ func InitClientCache(ctx context.Context, subClient, coreClient kubernetes.Inter
 	klog.Info("finish core cache sync ")
 
 	CoreClientCache = &clientCache{
-		Config:      coreConfig,
-		Client:      coreClient,
-		AstroClient: coreAsClient,
-		//NodeLister:      CoreSharedInformerFactory.Core().V1().Nodes().Lister(),
-		//NamespaceLister: CoreSharedInformerFactory.Core().V1().Namespaces().Lister(),
-		PodLister: CorePodInformerFactory.Core().V1().Pods().Lister(),
-		//CmLister:        CoreSharedInformerFactory.Core().V1().ConfigMaps().Lister(),
-		//SecretLister:    CoreSharedInformerFactory.Core().V1().Secrets().Lister(),
-		//ServiceLister:   CoreSharedInformerFactory.Core().V1().Services().Lister(),
-		//PvcLister:       CoreSharedInformerFactory.Core().V1().PersistentVolumeClaims().Lister(),
-		//PvLister:        CoreSharedInformerFactory.Core().V1().PersistentVolumes().Lister(),
-		ClusterLister: CoreAstroSharedInformerFactory.Astro().V1().Clusters().Lister(),
-		EventRecorder: coreEventRecorder,
+		Config:          coreConfig,
+		Client:          coreClient,
+		AstroClient:     coreAsClient,
+		NodeLister:      CoreSharedInformerFactory.Core().V1().Nodes().Lister(),
+		NamespaceLister: CoreSharedInformerFactory.Core().V1().Namespaces().Lister(),
+		PodLister:       CorePodInformerFactory.Core().V1().Pods().Lister(),
+		CmLister:        CoreSharedInformerFactory.Core().V1().ConfigMaps().Lister(),
+		SecretLister:    CoreSharedInformerFactory.Core().V1().Secrets().Lister(),
+		ServiceLister:   CoreSharedInformerFactory.Core().V1().Services().Lister(),
+		PvcLister:       CoreSharedInformerFactory.Core().V1().PersistentVolumeClaims().Lister(),
+		PvLister:        CoreSharedInformerFactory.Core().V1().PersistentVolumes().Lister(),
+		ClusterLister:   CoreAstroSharedInformerFactory.Astro().V1().Clusters().Lister(),
+		EventRecorder:   coreEventRecorder,
 	}
 
 	SubClientCache = &clientCache{
-		Config:      subConfig,
-		Client:      subClient,
-		AstroClient: subAsClient,
-		//NodeLister:      SubSharedInformerFactory.Core().V1().Nodes().Lister(),
-		//NamespaceLister: SubSharedInformerFactory.Core().V1().Namespaces().Lister(),
-		PodLister: SubSharedInformerFactory.Core().V1().Pods().Lister(),
-		//CmLister:        SubSharedInformerFactory.Core().V1().ConfigMaps().Lister(),
-		////SecretLister:         SubSharedInformerFactory.Core().V1().Secrets().Lister(),
-		//PvcLister:            SubSharedInformerFactory.Core().V1().PersistentVolumeClaims().Lister(),
-		//ServiceLister:        SubSharedInformerFactory.Core().V1().Services().Lister(),
-		//StatefulSetLister:    SubSharedInformerFactory.Apps().V1().StatefulSets().Lister(),
-		//ReplicaSetLister:     SubSharedInformerFactory.Apps().V1().ReplicaSets().Lister(),
-		//DeploymentLister:     SubSharedInformerFactory.Apps().V1().Deployments().Lister(),
-		//DaemonSetLister:      SubSharedInformerFactory.Apps().V1().DaemonSets().Lister(),
-		//EventLister:          SubSharedInformerFactory.Core().V1().Events().Lister(),
-		//PvLister:             SubSharedInformerFactory.Core().V1().PersistentVolumes().Lister(),
-		//ServiceAccountLister: SubSharedInformerFactory.Core().V1().ServiceAccounts().Lister(),
-		ClusterLister: SubAstroSharedInformerFactory.Astro().V1().Clusters().Lister(),
-		EventRecorder: subEventRecorder,
-		ResyncPeriod:  informerResyncPeriod,
+		Config:               subConfig,
+		Client:               subClient,
+		AstroClient:          subAsClient,
+		NodeLister:           SubSharedInformerFactory.Core().V1().Nodes().Lister(),
+		NamespaceLister:      SubSharedInformerFactory.Core().V1().Namespaces().Lister(),
+		PodLister:            SubSharedInformerFactory.Core().V1().Pods().Lister(),
+		CmLister:             SubSharedInformerFactory.Core().V1().ConfigMaps().Lister(),
+		SecretLister:         SubSharedInformerFactory.Core().V1().Secrets().Lister(),
+		PvcLister:            SubSharedInformerFactory.Core().V1().PersistentVolumeClaims().Lister(),
+		ServiceLister:        SubSharedInformerFactory.Core().V1().Services().Lister(),
+		StatefulSetLister:    SubSharedInformerFactory.Apps().V1().StatefulSets().Lister(),
+		ReplicaSetLister:     SubSharedInformerFactory.Apps().V1().ReplicaSets().Lister(),
+		DeploymentLister:     SubSharedInformerFactory.Apps().V1().Deployments().Lister(),
+		DaemonSetLister:      SubSharedInformerFactory.Apps().V1().DaemonSets().Lister(),
+		EventLister:          SubSharedInformerFactory.Core().V1().Events().Lister(),
+		PvLister:             SubSharedInformerFactory.Core().V1().PersistentVolumes().Lister(),
+		ServiceAccountLister: SubSharedInformerFactory.Core().V1().ServiceAccounts().Lister(),
+		ClusterLister:        SubAstroSharedInformerFactory.Astro().V1().Clusters().Lister(),
+		EventRecorder:        subEventRecorder,
+		ResyncPeriod:         informerResyncPeriod,
 	}
 
 }

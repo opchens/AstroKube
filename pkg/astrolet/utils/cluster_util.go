@@ -3,6 +3,9 @@ package utils
 import (
 	astrov1 "AstroKube/pkg/apis/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -41,4 +44,27 @@ func UpdateClusterCondition(cluster *astrov1.Cluster, condition *astrov1.Cluster
 	cluster.Status.Condition[index].Status = condition.Status
 	cluster.Status.Condition[index].Reason = condition.Reason
 	cluster.Status.Condition[index].Message = condition.Message
+}
+
+func ConvertCluster(clusterName string, old *astrov1.Cluster) (new *astrov1.Cluster) {
+	new = old.DeepCopy()
+	new.Name = ConvertClusterName(clusterName, old.Name)
+	UpdateClusterLabels(new)
+	return
+}
+
+func UpdateClusterLabels(c *astrov1.Cluster) {
+	level, err := strconv.Atoi(c.Labels[astrov1.ClusterLevelLabel])
+	if err != nil {
+		klog.Errorf("error: cluster %s with label %s=%s", c.Name, astrov1.ClusterLevelLabel, c.Labels[astrov1.ClusterLevelLabel])
+	} else {
+		level++
+		c.Labels[astrov1.ClusterLevelLabel] = strconv.Itoa(level)
+	}
+}
+
+func ConvertClusterName(clusterName, name string) string {
+	cls := strings.Split(name, ".")
+	cls = append([]string{clusterName}, cls...)
+	return strings.Join(cls, ".")
 }

@@ -326,9 +326,6 @@ spec:
                     type: string
                   namespace:
                     type: string
-                required:
-                - name
-                - namespace
                 type: object
               storage:
                 description: Storage is an array of csi plugins installed in the subCluster
