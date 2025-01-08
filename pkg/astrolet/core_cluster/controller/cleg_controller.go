@@ -7,12 +7,14 @@ import (
 	"AstroKube/pkg/astrolet/utils"
 	informersastrov1 "AstroKube/pkg/client/informers/externalversions/core/v1"
 	"context"
+	"fmt"
 	apiv1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	toolscache "k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"net"
@@ -37,7 +39,7 @@ type CLEGController struct {
 	clusterDaemonEndpoint astrov1.ClusterDaemonEndpoints
 	asConfiguration       *astrov1.AstroletConfiguration
 	apiServerAddress      []astrov1.Address
-	clusterInfo           astrov1.Info
+	clusterInfo           astrov1.ClusterInfo
 	secretRef             astrov1.ClusterSecretRef
 
 	clusterInformer informersastrov1.ClusterInformer
@@ -45,6 +47,8 @@ type CLEGController struct {
 	clusters map[string]*astrov1.Cluster
 
 	queue workqueue.RateLimitingInterface
+
+	ignoredCustomResources []string
 }
 
 func NewCLEGController(
@@ -287,13 +291,13 @@ func (c *CLEGController) initializeDaemonEndpoint(ctx context.Context) astrov1.C
 	}
 }
 
-func (c *CLEGController) initializeClusterInfo(ctx context.Context) *astrov1.Info {
+func (c *CLEGController) initializeClusterInfo(ctx context.Context) *astrov1.ClusterInfo {
 	version, err := cache.SubClientCache.Client.Discovery().ServerVersion()
 	if err != nil {
 		klog.Errorf("failed to get cluster version info")
 		return nil
 	}
-	return &astrov1.Info{
+	return &astrov1.ClusterInfo{
 		Major:        version.Major,
 		Minor:        version.Minor,
 		GitVersion:   version.GitVersion,
@@ -378,4 +382,109 @@ func createOrUpdateCluster(cluster *astrov1.Cluster, clusterInSub *astrov1.Clust
 		}
 	}
 	return nil
+}
+
+func (c *CLEGController) ensureCluster(ctx context.Context) error {
+	cluster, err := cache.CoreClientCache.ClusterLister.Clusters("default").Get(c.ClusterName)
+	retryFlag := false
+	if err == nil {
+		retryErr := utils.RetryConflictOrServiceUnavailable(retry.DefaultBackoff, func() error {
+			var errIn error
+			if retryFlag == true {
+				cluster, errIn = cache.CoreClientCache.ClusterLister.Clusters("default").Get(c.ClusterName)
+				if errIn != nil {
+					return errIn
+				}
+			}
+			clusterCopy := cluster.DeepCopy()
+			clusterCopy.Labels = make(map[string]string)
+			clusterCopy.Labels[astrov1.ClusterLevelLabel] = "1"
+			clusterCopy.Labels[astrov1.ClusterFullNameLabel] = c.ClusterName
+			if fullname, ok := clusterCopy.Labels[astrov1.ClusterFullNameLabel]; !ok || !strings.HasSuffix(fullname, c.ClusterName) {
+				clusterCopy.Labels[astrov1.ClusterFullNameLabel] = c.ClusterName
+			}
+			if !apiequality.Semantic.DeepEqual(clusterCopy, cluster) {
+				_, err = cache.CoreClientCache.AstroClient.AstroV1().Clusters("default").Update(ctx, clusterCopy, metav1.UpdateOptions{})
+				if err != nil {
+					retryFlag = true
+					return err
+				}
+			}
+			return nil
+		})
+		if retryErr != nil {
+			return retryErr
+		}
+	} else if errors.IsNotFound(err) {
+		newCluster := c.newCluster(ctx)
+		_, err = cache.CoreClientCache.AstroClient.AstroV1().Clusters("default").Create(ctx, newCluster, metav1.CreateOptions{})
+		if err != nil && !errors.IsAlreadyExists(err) {
+			klog.Errorf("register cluster failed, error: ", err.Error())
+			return err
+		}
+	} else {
+		return err
+	}
+
+	ignoredCR, err := cache.SubClientCache.Client.CoreV1().ConfigMaps(common.AstroSystem).Get(context.TODO(), common.IgnoredCustomResourcesConfigMap, metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			ignoredCR = &apiv1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: common.AstroSystem,
+					Name:      common.IgnoredCustomResourcesConfigMap,
+				},
+				Data: map[string]string{
+					common.IgnoredCustomResourcesConfigMap: strings.Join(common.IgnoredCustomResources, "\n"),
+				},
+			}
+			ignoredCR, err = cache.SubClientCache.Client.CoreV1().ConfigMaps(common.AstroSystem).Create(context.TODO(), ignoredCR, metav1.CreateOptions{})
+			if err != nil && !errors.IsAlreadyExists(err) {
+				return fmt.Errorf("failed to create configmap %s/%s in sub cluster: %v", common.AstroSystem, common.IgnoredCustomResourcesConfigMap, err)
+			}
+		} else {
+			return fmt.Errorf("failed to get configmap %s/%s in sub cluster: %v", common.AstroSystem, common.IgnoredCustomResourcesConfigMap, err)
+		}
+	}
+	for _, s := range strings.Split(ignoredCR.Data[common.IgnoredCustomResourcesData], "\n") {
+		s = strings.TrimSpace(s)
+		if len(s) != 0 {
+			c.ignoredCustomResources = append(c.ignoredCustomResources, s)
+		}
+	}
+	return utils.RetryConflictOrServiceUnavailable(retry.DefaultBackoff, func() error {
+		cluster, err := cache.CoreClientCache.ClusterLister.Clusters("default").Get(c.ClusterName)
+		if err != nil {
+			return err
+		}
+		clusterCopy := cluster.DeepCopy()
+		clusterCopy.Status.ClusterInfo = c.clusterInfo
+		clusterCopy.Status.Configuration = c.asConfiguration
+		clusterCopy.Status.Addresses = c.apiServerAddress
+		clusterCopy.Status.DaemonEndpoint = c.clusterDaemonEndpoint
+		clusterCopy.Status.SecretRef = c.secretRef
+		if c.clusterInformer == nil {
+			clusterCopy.Status.SubClusterNodes = clusterCopy.Status.Nodes
+		}
+		if !apiequality.Semantic.DeepEqual(clusterCopy.Status, cluster.Status) {
+			_, err = cache.CoreClientCache.AstroClient.AstroV1().Clusters("default").UpdateStatus(ctx, clusterCopy, metav1.UpdateOptions{})
+			return err
+		}
+		return nil
+		return nil
+	})
+}
+
+func (c *CLEGController) newCluster(ctx context.Context) *astrov1.Cluster {
+	return &astrov1.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: c.ClusterName,
+			Labels: map[string]string{
+				astrov1.ClusterLevelLabel:    "1",
+				astrov1.ClusterLabel:         c.ClusterName,
+				astrov1.ClusterFullNameLabel: c.ClusterName,
+			},
+		},
+		Spec: astrov1.ClusterSpec{},
+	}
 }

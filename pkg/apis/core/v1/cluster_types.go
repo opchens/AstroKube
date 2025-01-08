@@ -26,6 +26,8 @@ type ClusterSpec struct{}
 
 // ClusterStatus defines the observed state of Cluster
 type ClusterStatus struct {
+	Configuration *AstroletConfiguration `json:"configuration,omitempty"`
+
 	Addresses []Address    `json:"addresses,omitempty"`
 	Phase     ClusterPhase `json:"phase,omitempty"`
 
@@ -197,18 +199,6 @@ type Auth struct {
 type Target struct {
 	// Apiserver represents the IPaddress
 	Apiserver string `json:"apiserver,omitempty"`
-}
-
-type Info struct {
-	Major        string `json:"major" protobuf:"bytes,1,opt,name=major"`
-	Minor        string `json:"minor" protobuf:"bytes,2,opt,name=minor"`
-	GitVersion   string `json:"gitVersion" protobuf:"bytes,3,opt,name=gitVersion"`
-	GitCommit    string `json:"gitCommit" protobuf:"bytes,4,opt,name=gitCommit"`
-	GitTreeState string `json:"gitTreeState" protobuf:"bytes,5,opt,name=gitTreeState"`
-	BuildDate    string `json:"buildDate" protobuf:"bytes,6,opt,name=buildDate"`
-	GoVersion    string `json:"goVersion" protobuf:"bytes,7,opt,name=goVersion"`
-	Compiler     string `json:"compiler" protobuf:"bytes,8,opt,name=compiler"`
-	Platform     string `json:"platform" protobuf:"bytes,9,opt,name=platform"`
 }
 
 // +genclient
