@@ -201,6 +201,7 @@ func (c *CLEGController) Run(ctx context.Context) {
 	if err := c.ensureNamespace(ctx); err != nil {
 		klog.Errorf("cannot ensure if namespace is exist, error: %v", err)
 	}
+
 }
 
 func (c *CLEGController) init(ctx context.Context) error {
@@ -514,6 +515,18 @@ func (c *CLEGController) ensureNamespace(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (c *CLEGController) updateStatus(ctx context.Context) {
+	klog.V(4).Infof("start update status")
+	defer klog.V(4).Infof("finish update status")
+	cluster, err := cache.CoreClientCache.ClusterLister.Clusters("default").Get(c.ClusterName)
+	if err != nil {
+		klog.Errorf("failed to get cluster %s:%s", c.ClusterName, err)
+		return
+	}
+	_ = cluster.DeepCopy()
+
 }
 
 func (c *CLEGController) newCluster(ctx context.Context) *astrov1.Cluster {
