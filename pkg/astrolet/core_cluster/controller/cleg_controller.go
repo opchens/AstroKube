@@ -195,7 +195,12 @@ func (c *CLEGController) Run(ctx context.Context) {
 	if err := c.init(ctx); err != nil {
 		klog.Fatalf("cannot init, error: %v", err)
 	}
-
+	if err := c.ensureCluster(ctx); err != nil {
+		klog.Errorf("cannot ensure if cluster is exist, error: %v", err)
+	}
+	if err := c.ensureNamespace(ctx); err != nil {
+		klog.Errorf("cannot ensure if namespace is exist, error: %v", err)
+	}
 }
 
 func (c *CLEGController) init(ctx context.Context) error {
@@ -471,8 +476,44 @@ func (c *CLEGController) ensureCluster(ctx context.Context) error {
 			return err
 		}
 		return nil
-		return nil
 	})
+}
+
+func (c *CLEGController) ensureNamespace(ctx context.Context) error {
+	_, err := cache.CoreClientCache.NamespaceLister.Get(common.AstroSystem)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			ns := &apiv1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: common.AstroSystem,
+				},
+			}
+
+			_, err := cache.CoreClientCache.Client.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
+			if err != nil && !errors.IsAlreadyExists(err) {
+				return fmt.Errorf("failed to create namespace/%s in core cluster: %v", common.AstroSystem, err)
+			}
+		} else {
+			return fmt.Errorf("failed to get namespace/%s in core cluster: %v", common.AstroSystem, err)
+		}
+	}
+	_, err = cache.SubClientCache.NamespaceLister.Get(common.AstroSystem)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			ns := &apiv1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: common.AstroSystem,
+				},
+			}
+			_, err := cache.SubClientCache.Client.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
+			if err != nil && !errors.IsAlreadyExists(err) {
+				return fmt.Errorf("failed to create namespace/%s in planet cluster: %v", common.AstroSystem, err)
+			}
+		} else {
+			return fmt.Errorf("failed to get namespace/mizargalaxy-system in planet cluster: %v", err)
+		}
+	}
+	return nil
 }
 
 func (c *CLEGController) newCluster(ctx context.Context) *astrov1.Cluster {
