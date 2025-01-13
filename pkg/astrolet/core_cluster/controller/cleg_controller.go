@@ -13,6 +13,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/json"
+	"k8s.io/apimachinery/pkg/util/wait"
 	toolscache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
@@ -32,6 +35,7 @@ type CLEGController struct {
 	LeaseDurationSeconds time.Duration
 	ForceSyncFrequency   time.Duration
 	NamespacePrefix      string
+	TopNodeN             int
 
 	SubApiServerProtocol string
 	SubApiServerPort     int32
@@ -44,7 +48,16 @@ type CLEGController struct {
 
 	clusterInformer informersastrov1.ClusterInformer
 
-	clusters map[string]*astrov1.Cluster
+	nodes      map[string]*utils.NodeInfo
+	clusters   map[string]*astrov1.Cluster
+	pods       map[string]*apiv1.Pod
+	scoreNodes utils.ScoreNodeList
+
+	allocatable *utils.Resource
+	usage       *utils.Resource
+
+	subClusterAllocatable *utils.Resource
+	subClusterUsage       *utils.Resource
 
 	queue workqueue.RateLimitingInterface
 
@@ -202,6 +215,424 @@ func (c *CLEGController) Run(ctx context.Context) {
 		klog.Errorf("cannot ensure if namespace is exist, error: %v", err)
 	}
 
+	go wait.UntilWithContext(ctx, c.updateStatus, c.ForceSyncFrequency)
+	go wait.UntilWithContext(ctx, c.syncClusterLabelToNode, c.ForceSyncFrequency)
+
+	c.sync()
+}
+
+func (c *CLEGController) sync() {
+	for {
+		key, shutdown := c.queue.Get()
+		if shutdown {
+			return
+		}
+		e := key.(*event)
+		klog.V(4).Infof("start reconcile %s %s", e.eventType, e.name)
+		var err error
+		switch e.eventType {
+		case "Pod":
+			err = c.syncPod(e)
+		case "Node":
+			err = c.syncNode(e)
+		case "Cluster":
+			err = c.syncCluster(e)
+		default:
+			klog.Warningf("got unknown eventType: %s", e.eventType)
+		}
+		if err != nil {
+			klog.Errorf("sync error %s/%s: $%s", e.eventType, e.name, err)
+			c.queue.AddRateLimited(e)
+			return
+		} else {
+			c.queue.Forget(e)
+		}
+		c.queue.Done(e)
+		klog.V(4).Infof("finish reconcile %s %s", e.eventType, e.name)
+	}
+}
+
+func (c *CLEGController) syncPod(e *event) error {
+	klog.V(4).Infof("start sync pod %s", e.name)
+	namespace, name, err := toolscache.SplitMetaNamespaceKey(e.name)
+	if err != nil {
+		klog.Errorf("syncPod %s error: %s", e, err)
+		return nil
+	}
+	pod, err := cache.SubClientCache.PodLister.Pods(namespace).Get(name)
+	if errors.IsNotFound(err) {
+		cachePod, ok := c.pods[e.name]
+		if ok {
+			c.deletePodFromCache(cachePod, e)
+		}
+		return nil
+	} else if err != nil {
+		return err
+	}
+	if _, ok := pod.Annotations["location"]; !ok {
+		return nil
+	}
+	// update pod cache if phase is not podsuccessed or podfailed
+	if cachePod, ok := c.pods[e.name]; ok {
+		if pod.Status.Phase == apiv1.PodSucceeded || pod.Status.Phase == apiv1.PodFailed {
+			klog.V(4).Infof("pod.status.phase Successed or Failed, remove pod %s from cache", e.name)
+			c.deletePodFromCache(cachePod, e)
+		} else {
+			klog.V(4).Infof("update  pod %s in cache", e.name)
+			c.pods[e.name] = pod.DeepCopy()
+		}
+	} else if pod.Spec.NodeName != "" && pod.Status.Phase != apiv1.PodSucceeded && pod.Status.Phase != apiv1.PodFailed {
+		// pod not in cache and has scheduled
+		klog.V(4).Infof("pod %s been scheduled to node %s", e.name, pod.Spec.NodeName)
+		nodeInfo, ok := c.nodes[pod.Spec.NodeName]
+		if ok {
+			// add usage cache
+			c.pods[e.name] = pod.DeepCopy()
+			res := nodeInfo.AddPod(pod)
+			c.usage.AddResource(res)
+			patch := []string{"usage"}
+			nodeInfo.Score()
+			originIndex := nodeInfo.Index
+			c.scoreNodes.Down(nodeInfo.Index)
+			if originIndex < c.TopNodeN {
+				patch = append(patch, "nodes")
+			}
+			err := c.patchStatus(patch)
+			if err != nil {
+				klog.Errorf("syncPod: patchStatus error: %v", err)
+			}
+		} else {
+			klog.Warningf("syncPod get pod %s update event, pod.Sepc.NodeName is %s, but not found node in cc.nodes", e.name, pod.Spec.NodeName)
+		}
+	} else {
+		klog.V(4).Infof("pod %s has not been scheduled", e.name)
+	}
+	return nil
+}
+
+func (c *CLEGController) syncNode(e *event) error {
+	klog.V(4).Infof("start sync node %s", e.name)
+	node, err := cache.SubClientCache.NodeLister.Get(e.name)
+	if errors.IsNotFound(err) || !utils.IsNodeReady(node) {
+		// node deleted or notready
+		nodeInfo, ok := c.nodes[e.name]
+		if ok {
+			// delete cache
+			delete(c.nodes, e.name)
+			c.usage.SubResource(nodeInfo.Usage)
+			c.allocatable.SubResource(nodeInfo.Allocatable)
+			for name, pod := range c.pods {
+				if pod.Spec.NodeName == e.name {
+					delete(c.pods, name)
+				}
+			}
+			patch := []string{"usage", "allocatable"}
+			c.scoreNodes.Remove(nodeInfo.Index)
+			if nodeInfo.Index < c.TopNodeN {
+				patch = append(patch, "nodes")
+			}
+			err := c.patchStatus(patch)
+			if err != nil {
+				klog.Errorf("syncNode: patchStatus error: %v", err)
+			}
+		} else {
+			klog.Warningf("syncNode get node %s delete event, but not found node in c.nodes", e.name)
+		}
+		return nil
+	} else if err != nil {
+		return err
+	}
+	nodeInfo, ok := c.nodes[e.name]
+	if ok {
+		klog.V(4).Infof("node %s has been update", e.name)
+		cacheNodeInfo := &utils.NodeInfo{
+			Node:        nodeInfo.Node,
+			Allocatable: nodeInfo.Allocatable.DeepCopy(),
+			Usage:       nodeInfo.Usage.DeepCopy(),
+			Pods:        nodeInfo.Pods,
+		}
+		nodeInfo.Node = node
+		allocatable := utils.NewResource(node.Status.Allocatable)
+		var diff *utils.Resource
+		if !allocatable.Equal(cacheNodeInfo.Allocatable) {
+			diff = allocatable.Diff(cacheNodeInfo.Allocatable)
+			nodeInfo.Allocatable = allocatable.DeepCopy()
+			c.allocatable.AddResource(diff)
+			patch := []string{"allocatable"}
+			nodeInfo.Score()
+			listChanged := c.scoreNodes.Up(nodeInfo.Index)
+			if listChanged {
+				if nodeInfo.Index < c.TopNodeN {
+					patch = append(patch, "nodes")
+				}
+			} else {
+				originIndex := nodeInfo.Index
+				c.scoreNodes.Down(nodeInfo.Index)
+				if originIndex < c.TopNodeN {
+					patch = append(patch, "nodes")
+				}
+			}
+			err := c.patchStatus(patch)
+			if err != nil {
+				klog.Errorf("syncNode: patchStatus error: %v", err)
+			}
+		}
+	} else {
+		klog.V(4).Infof("node %s has been added", e.name)
+		nodeInfo := utils.NewNodeInfo(node)
+		nodeInfo.Index = c.scoreNodes.Len()
+		c.nodes[node.Name] = nodeInfo
+		c.allocatable.AddResource(nodeInfo.Allocatable)
+		pods, _ := cache.SubClientCache.PodLister.List(labels.Everything())
+		for _, pod := range pods {
+			if pod.Spec.NodeName == e.name {
+				key, err := toolscache.MetaNamespaceKeyFunc(pod)
+				if err != nil {
+					klog.Errorf("addPodEvent error: %s", err)
+					continue
+				}
+				klog.V(4).Infof("add pod: %s", key)
+				c.queue.Add(&event{"Pod", key})
+			}
+		}
+		patch := []string{"allocatable"}
+		nodeInfo.Score()
+		c.scoreNodes = append(c.scoreNodes, nodeInfo)
+		c.scoreNodes.Up(nodeInfo.Index)
+		if nodeInfo.Index < c.TopNodeN {
+			patch = append(patch, "nodes")
+		}
+		err = c.patchStatus(patch)
+		if err != nil {
+			klog.Errorf("syncNode: patchStatus error: %v", err)
+		}
+	}
+	return nil
+}
+
+func (c *CLEGController) syncCluster(e *event) error {
+	cluster, err := cache.SubClientCache.ClusterLister.Clusters("default").Get(e.name)
+	if errors.IsNotFound(err) {
+		// deleted sub cluster in core cluster
+		nameInCore := utils.ConvertClusterName(c.ClusterName, e.name)
+		err = cache.CoreClientCache.AstroClient.AstroV1().Clusters("default").Delete(context.TODO(), nameInCore, metav1.DeleteOptions{})
+		if errors.IsNotFound(err) {
+			klog.Infof("syncCluster: cluster %s has been deleted", nameInCore)
+		} else if err != nil {
+			return err
+		}
+		cacheCluster, ok := c.clusters[e.name]
+		if ok {
+			delete(c.clusters, e.name)
+			c.subClusterUsage.SubResource(utils.NewResource(cacheCluster.Status.SubClusterUsage))
+			c.subClusterAllocatable.SubResource(utils.NewResource(cacheCluster.Status.Allocatable))
+			err := c.patchStatus([]string{"subClusterUsage", "subClusterAllocatable", "subClusterNodes"})
+			if err != nil {
+				klog.Errorf("syncCluster: patchStatus error: %v", err)
+			}
+		} else {
+			klog.Warningf("syncCluster get cluster %s deleted event, but not found in c.clusters", e.name)
+		}
+		return nil
+	} else if err != nil {
+		return err
+	}
+	// update sub cluster in core cluster
+	clusterInCore := utils.ConvertCluster(c.ClusterName, cluster)
+	err = createOrUpdateCluster(clusterInCore, cluster)
+	if err != nil {
+		return err
+	}
+	if cluster.Labels[astrov1.ClusterLevelLabel] != "1" {
+		return nil
+	}
+	cacheCluster, ok := c.clusters[e.name]
+	if ok {
+		if cluster.Status.Phase == astrov1.ONLINE {
+			c.clusters[e.name] = cluster.DeepCopy()
+			changed := []string{"subClusterNodes"}
+			subClusterUsage := utils.NewResource(cluster.Status.SubClusterUsage)
+			cacheSubClusterUsage := utils.NewResource(cacheCluster.Status.SubClusterUsage)
+			if !subClusterUsage.Equal(cacheSubClusterUsage) {
+				subClusterUsage.SubResource(cacheSubClusterUsage)
+				c.subClusterUsage.AddResource(subClusterUsage)
+				changed = append(changed, "subClusterUsage")
+			}
+			subClusterAllocatable := utils.NewResource(cluster.Status.SubClusterAllocatable)
+			cacheSubClusterAllocatable := utils.NewResource(cacheCluster.Status.SubClusterAllocatable)
+			if !subClusterAllocatable.Equal(cacheSubClusterAllocatable) {
+				subClusterAllocatable.SubResource(cacheSubClusterAllocatable)
+				c.subClusterAllocatable.AddResource(subClusterAllocatable)
+				changed = append(changed, "subClusterAllocatable")
+			}
+			err = c.patchStatus(changed)
+		} else {
+			klog.V(4).Infof("cluster %s offline", e.name)
+			delete(c.clusters, e.name)
+			c.subClusterUsage.SubResource(utils.NewResource(cacheCluster.Status.SubClusterUsage))
+			c.subClusterAllocatable.SubResource(utils.NewResource(cacheCluster.Status.SubClusterAllocatable))
+			err = c.patchStatus([]string{"subClusterUsage", "subClusterAllocatable", "subClusterNodes"})
+		}
+	} else if cluster.Status.Phase == astrov1.ONLINE {
+		klog.V(4).Infof("cluster %s added", e.name)
+		c.clusters[e.name] = cluster.DeepCopy()
+		c.subClusterUsage.AddResource(utils.NewResource(cluster.Status.SubClusterUsage))
+		c.subClusterAllocatable.AddResource(utils.NewResource(cluster.Status.SubClusterAllocatable))
+		err = c.patchStatus([]string{"subClusterUsage", "subClusterAllocatable", "subClusterNodes"})
+	}
+	if err != nil {
+		klog.Errorf("syncCluster: patchStatus error: %v", err)
+	}
+	return nil
+}
+
+func (c *CLEGController) deletePodFromCache(cachePod *apiv1.Pod, e *event) {
+	delete(c.pods, e.name)
+	nodeInfo, ok := c.nodes[cachePod.Spec.NodeName]
+	if ok {
+		res := nodeInfo.RemovePod(cachePod)
+		c.usage.SubResource(res)
+		patch := []string{"usage"}
+		nodeInfo.Score()
+		c.scoreNodes.Up(nodeInfo.Index)
+		if nodeInfo.Index > c.TopNodeN {
+			patch = append(patch, "nodes")
+		}
+		err := c.patchStatus(patch)
+		if err != nil {
+			klog.Errorf("syncPod: patchStatus error: %v", err)
+		}
+	} else {
+		klog.Warningf("syncPod get pod %s delete event, pod.Sepc.NodeName is %s, but not found node in cc.nodes", e.name, cachePod.Spec.NodeName)
+
+	}
+}
+
+func (c *CLEGController) patchStatus(changes []string) error {
+	if len(changes) == 0 {
+		return nil
+	}
+	payloads := []utils.PatchStatus{}
+	if c.clusterInformer == nil {
+		addChanges := []string{}
+		for _, change := range changes {
+			switch change {
+			case "usage":
+				c.subClusterUsage = c.usage.DeepCopy()
+				addChanges = append(addChanges, "subClusterUsage")
+			case "allocatable":
+				c.subClusterAllocatable = c.allocatable.DeepCopy()
+				addChanges = append(addChanges, "subClusterAllocatable")
+			case "nodes":
+				payload := utils.PatchStatus{
+					Op:    "replace",
+					Path:  "/status/subClusterNode",
+					Value: c.scoreNodes.Top(c.TopNodeN),
+				}
+				payloads = append(payloads, payload)
+			}
+		}
+		changes = append(changes, addChanges...)
+	}
+	for _, change := range changes {
+		switch change {
+		case "usage":
+			payload := utils.PatchStatus{
+				Op:    "replace",
+				Path:  "/status/usage",
+				Value: c.usage.ToResourceList(),
+			}
+			payloads = append(payloads, payload)
+		case "allocatable":
+			payload := utils.PatchStatus{
+				Op:    "replace",
+				Path:  "/status/allocatable",
+				Value: c.allocatable.ToResourceList(),
+			}
+			payloads = append(payloads, payload)
+		case "nodes":
+			payload := utils.PatchStatus{
+				Op:    "replace",
+				Path:  "/status/nodes",
+				Value: c.scoreNodes.Top(c.TopNodeN),
+			}
+			payloads = append(payloads, payload)
+		case "subClusterUsage":
+			payload := utils.PatchStatus{
+				Op:    "replace",
+				Path:  "/status/subClusterUsage",
+				Value: c.subClusterUsage.ToResourceList(),
+			}
+			payloads = append(payloads, payload)
+		case "subClusterAllocatable":
+			payload := utils.PatchStatus{
+				Op:    "replace",
+				Path:  "/status/subClusterAllocatable",
+				Value: c.subClusterAllocatable.ToResourceList(),
+			}
+			payloads = append(payloads, payload)
+		case "subClusterNodes":
+			payload := utils.PatchStatus{
+				Op:    "replace",
+				Path:  "/status/subClusterNodes",
+				Value: c.getSubClusterNodes(),
+			}
+			payloads = append(payloads, payload)
+		}
+	}
+	payloadBytes, err := json.Marshal(payloads)
+	if err != nil {
+		return err
+	}
+	starClient := cache.CoreClientCache.AstroClient.AstroV1().Clusters("default")
+	klog.V(4).Infof("patch cluster status: %s", payloads)
+	_, err = starClient.Patch(context.TODO(), c.ClusterName, types.JSONPatchType, payloadBytes, metav1.PatchOptions{}, "status")
+	return err
+}
+
+func (c *CLEGController) getSubClusterNodes() []astrov1.NodeLeftResource {
+	ret := make([]astrov1.NodeLeftResource, 0, c.TopNodeN)
+	clusterNodes := make(map[string]*utils.Resource)
+	clusterIndex := make(map[string]int)
+	for _, cluster := range c.clusters {
+		if len(cluster.Status.SubClusterNodes) == 0 {
+			clusterIndex[cluster.Name] = -1
+		} else {
+			clusterNodes[cluster.Name] = utils.NewResource(cluster.Status.SubClusterNodes[0].Left)
+			clusterIndex[cluster.Name] = 0
+		}
+	}
+	for i := 0; i < c.TopNodeN; i++ {
+		clusterName := ""
+		nodeName := ""
+		max := utils.NewResource(nil)
+		for _, cluster := range c.clusters {
+			if clusterIndex[cluster.Name] == -1 {
+				continue
+			}
+			if max.Less(clusterNodes[cluster.Name]) {
+				clusterName = cluster.Name
+				nodeName = cluster.Status.SubClusterNodes[clusterIndex[clusterName]].Name
+				max = clusterNodes[cluster.Name]
+			}
+		}
+		if clusterName == "" {
+			break
+		}
+		ret = append(ret, astrov1.NodeLeftResource{
+			Name: clusterName + "." + nodeName,
+			Left: max.ToResourceList(),
+		})
+		clusterIndex[clusterName]++
+		cluster := c.clusters[clusterName]
+		index := clusterIndex[clusterName]
+		if index >= len(cluster.Status.SubClusterNodes) {
+			clusterIndex[clusterName] = -1
+		} else {
+			clusterNodes[clusterName] = utils.NewResource(cluster.Status.SubClusterNodes[index].Left)
+		}
+	}
+	return ret
 }
 
 func (c *CLEGController) init(ctx context.Context) error {
@@ -210,6 +641,47 @@ func (c *CLEGController) init(ctx context.Context) error {
 	c.clusterDaemonEndpoint = c.initializeDaemonEndpoint(ctx)
 	c.clusterInfo = *c.initializeClusterInfo(ctx)
 	c.secretRef = c.initializeSecretRef()
+
+	nodes, err := cache.SubClientCache.NodeLister.List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	c.nodes = make(map[string]*utils.NodeInfo)
+	for _, node := range nodes {
+		if utils.GetSubClusterNodeLevel(node) > 0 {
+			continue
+		}
+		if utils.IsNodeReady(node) {
+			c.nodes[node.Name] = utils.NewNodeInfo(node)
+		}
+	}
+
+	pods, err := cache.SubClientCache.PodLister.List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	c.pods = make(map[string]*apiv1.Pod)
+	for _, pod := range pods {
+		key, err := toolscache.MetaNamespaceKeyFunc(pod)
+		if err != nil {
+			return err
+		}
+		if pod.Spec.NodeName != "" && pod.Status.Phase != apiv1.PodSucceeded && pod.Status.Phase != apiv1.PodFailed {
+			if nodeInfo, ok := c.nodes[pod.Spec.NodeName]; ok {
+				nodeInfo.AddPod(pod)
+				c.pods[key] = pod.DeepCopy()
+			}
+		}
+	}
+
+	index := 0
+	for _, nodeInfo := range c.nodes {
+		nodeInfo.Score()
+		nodeInfo.Index = index
+		index++
+		c.usage.AddResource(nodeInfo.Usage)
+		c.allocatable.AddResource(nodeInfo.Allocatable)
+	}
 
 	if c.clusterInformer != nil {
 		clusters, err := cache.SubClientCache.ClusterLister.List(labels.Everything())
@@ -223,6 +695,11 @@ func (c *CLEGController) init(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+			if cl.Status.Phase != astrov1.ONLINE || cl.Labels[astrov1.ClusterLabel] != "1" {
+				continue
+			}
+			c.subClusterUsage.AddResource(utils.NewResource(cl.Status.SubClusterUsage))
+			c.subClusterAllocatable.AddResource(utils.NewResource(cl.Status.SubClusterAllocatable))
 			c.clusters[cl.Name] = cl.DeepCopy()
 		}
 	}
@@ -525,8 +1002,69 @@ func (c *CLEGController) updateStatus(ctx context.Context) {
 		klog.Errorf("failed to get cluster %s:%s", c.ClusterName, err)
 		return
 	}
-	_ = cluster.DeepCopy()
+	clusterCopy := cluster.DeepCopy()
+	clusterCopy.Status.Usage = c.usage.ToResourceList()
+	clusterCopy.Status.Allocatable = c.allocatable.ToResourceList()
+	clusterCopy.Status.Nodes = c.scoreNodes.Top(c.TopNodeN)
+	klog.V(4).Infof("update cluster status: %s", clusterCopy.Status)
+	_, err = cache.CoreClientCache.AstroClient.AstroV1().Clusters("default").UpdateStatus(ctx, clusterCopy, metav1.UpdateOptions{})
+	if err != nil {
+		klog.Errorf("failed to update cluster %s status: %s", c.ClusterName, err)
+	}
+}
 
+func (c *CLEGController) syncClusterLabelToNode(ctx context.Context) {
+	cluster, err := cache.CoreClientCache.ClusterLister.Clusters("default").Get(c.ClusterName)
+	if err != nil {
+		klog.Errorf("failed to get cluster %s", c.ClusterName)
+	}
+	klog.Infof("Start to syncClusterLbaelToNode for cluster %s", c.ClusterName)
+	if cluster.Labels == nil || cluster.Labels[astrov1.LabelClusterName] == "" {
+		return
+	}
+	if cluster.Labels[astrov1.LabelClusterName] != cluster.Name {
+		klog.Warningf("cluster label %s value %s not equal cluster name %s", astrov1.LabelClusterName, cluster.Labels[astrov1.LabelClusterName], c.ClusterName)
+		return
+	}
+	nodes, err := cache.SubClientCache.NodeLister.List(labels.Everything())
+	if err != nil {
+		klog.Errorf("failed to list the nodes in cluster %s: %v", cluster.Name, err)
+		return
+	}
+	for _, node := range nodes {
+		if utils.GetSubClusterNodeLevel(node) > 0 {
+			continue
+		}
+		if err := c.syncNodeLabel(node, cluster.Labels); err != nil {
+			klog.Errorf("failed to update the node %s in cluster %s labels: %v", node.Name, cluster.Name, err)
+		}
+	}
+}
+
+func (c *CLEGController) syncNodeLabel(node *apiv1.Node, label map[string]string) error {
+	if node.Labels == nil {
+		node.Labels = make(map[string]string)
+	}
+	nodeCopy := node.DeepCopy()
+	nodeCopy.Labels[astrov1.LabelClusterName] = c.ClusterName
+	for _, topoKey := range utils.ClusterTopoKeyList {
+		val, ok := label[topoKey]
+		if !ok {
+			_, ok1 := nodeCopy.Labels[topoKey]
+			if ok1 {
+				delete(nodeCopy.Labels, topoKey)
+			}
+		} else {
+			if val != nodeCopy.Labels[topoKey] {
+				nodeCopy.Labels[topoKey] = val
+			}
+		}
+	}
+	if !apiequality.Semantic.DeepEqual(node.Labels, nodeCopy.Labels) {
+		_, err := cache.SubClientCache.Client.CoreV1().Nodes().Update(context.TODO(), nodeCopy, metav1.UpdateOptions{})
+		return err
+	}
+	return nil
 }
 
 func (c *CLEGController) newCluster(ctx context.Context) *astrov1.Cluster {

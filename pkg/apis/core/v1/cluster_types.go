@@ -38,7 +38,7 @@ type ClusterStatus struct {
 	Usage corev1.ResourceList `json:"usage,omitempty"`
 
 	// Nodes describes remained resource of top N nodes based on remaining resources
-	Nodes []NodeLeftResources `json:"nodes,omitempty"`
+	Nodes []NodeLeftResource `json:"nodes,omitempty"`
 
 	// SubClusterAllocated indicate the resources in the cluster that can be used for scheduling
 	SubClusterAllocatable corev1.ResourceList `json:"subClusterAllocatable,omitempty"`
@@ -47,7 +47,7 @@ type ClusterStatus struct {
 	SubClusterUsage corev1.ResourceList `json:"subClusterUsage,omitempty"`
 
 	// SubClusterNodes indicted the resource of topN nodes based on remaining resources
-	SubClusterNodes []NodeLeftResources `json:"subClusterNodes,omitempty"`
+	SubClusterNodes []NodeLeftResource `json:"subClusterNodes,omitempty"`
 
 	// Namespace indicated the resource occupation of a federal namespace in the workloadCluster
 	Namespace []NamespaceUsage `json:"namespace,omitempty"`
@@ -78,7 +78,7 @@ type ClusterStatus struct {
 }
 
 type NodesInAggregate struct {
-	Nodes []NodeLeftResources `json:"nodes"`
+	Nodes []NodeLeftResource `json:"nodes"`
 }
 
 type Address struct {
@@ -103,7 +103,7 @@ const (
 )
 
 // NodeLeftResources Describes the remaining resources of the node
-type NodeLeftResources struct {
+type NodeLeftResource struct {
 	// Name  indicate the name of node
 	Name string `json:"name"`
 
